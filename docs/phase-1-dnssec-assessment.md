@@ -23,7 +23,13 @@ Live non-recursive TCP/53 probes (`SOA`, `DS`, `DNSKEY`) revealed three distinct
 | **Unsigned / Insecure Delegation (No `DS`, No `DNSKEY`)** | `.bbs`, `.cyb`, `.neo`, `.null`, `.oz`, `dns.opennic.glue` | Resolves as provably insecure (via root `NSEC`/`NSEC3`), returning `NOERROR` without `AD` bit. |
 | **Broken / Incomplete Chain (`DS` in root, `DNSKEY=0` or `SERVFAIL`)** | `.free` (`DS=3, DNSKEY=0`), `.ing` (`DS=2, DNSKEY=0`), `.o` (`DS=5, DNSKEY=0` on `ns2`), `.fur` (`SOA RCODE=2 SERVFAIL`) | Strict `dnssec-validation yes;` returns **`SERVFAIL`** when a root `DS` exists without matching valid `DNSKEY`/`RRSIG` from authoritative TLD servers. |
 
-> **Important Note on `.o`, `.free`, `.ing`:** On `161.97.219.84` (`ns2.opennic.glue`), queries for `DS` returned records from the root/parent cache, whereas `DNSKEY` returned 0 answers (e.g., `.o` is hosted primarily on `ns7`, `.ing` on its own master). A recursive resolver querying the authoritative TLD servers directly (or via `dig` inside a live Linux BIND9 container) must confirm whether the authoritative masters serve valid `DNSKEY`/`RRSIG` records or whether any TLD has a genuinely broken `DS` chain.
+> **Important Note on Live Recursive Verification (`2026-11-27`, BIND 9.20 Linux Sandbox):**
+> Live recursive resolution through the containerized BIND 9.20 Tier 2 resolver (`dnssec-validation yes;`) confirmed:
+> - **`.free` and `.ing`:** Validated cleanly (`NOERROR` with `AD` bit set) when resolved recursively from their authoritative masters, despite `ns2` (`161.97.219.84`) returning 0 `DNSKEY` answers in direct non-recursive probes.
+> - **`.o`:** Failed DNSSEC validation (`SERVFAIL`; `named-security.log`: `validating o/SOA: got insecure response; parent indicates it should be secure`) because OpenNIC root carries 5 `DS` records while the authoritative response lacks valid signatures.
+> - **`.chan`:** Failed DNSSEC validation (`SERVFAIL`; `named-security.log`: `validating chan/DNSKEY: verify failed due to bad signature (keyid=27151): RRSIG has expired`).
+> - **`.fur`:** Resolved as unsigned/insecure (`NOERROR` without `AD` bit) recursively, whereas direct `ns2` (`161.97.219.84`) SOA probe returned `SERVFAIL`.
+> - **`icann.org` / `.org`:** OpenNIC root (`2026111315`) carries `.org` DS `725` alongside legacy DS `26974`. While `isc.org` and `debian.org` validated cleanly (`AD=1`), `icann.org` returned `NOERROR` with `+cd` during cold IPv4/recursive testing and requires ongoing verification against live OpenNIC root refreshes.
 
 ---
 

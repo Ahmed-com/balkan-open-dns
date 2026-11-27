@@ -3,7 +3,12 @@ name: Phase 1 Tier 2 DNS Validation & Security Gate
 on:
   push:
     branches:
+      - main
       - phase-1-validation
+    paths:
+      - 'infrastructure/dns-tier2/**'
+      - '.github/workflows/phase-1-validation.yml'
+      - 'docs/phase-1-*.md'
   pull_request:
     branches:
       - main
