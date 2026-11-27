@@ -12,13 +12,13 @@ acl "sandbox_clients" {
 
 options {
     directory "/var/cache/bind";
-    pid-file "/run/named/named.pid";
-    session-keyfile "/run/named/session.key";
+    pid-file "/var/cache/bind/named.pid";
+    session-keyfile "/var/cache/bind/session.key";
 
-    // Listen on all container interfaces; host exposure is strictly controlled
-    // via Docker port binding (127.0.0.1:53 in dev/sandbox) and host firewall.
-    listen-on port 53 { any; };
-    listen-on-v6 port 53 { any; };
+    // Listen on unprivileged port 5353 inside non-root container;
+    // Docker maps 127.0.0.1:53 -> 5353 (or VPS firewall/port 53 when authorized).
+    listen-on port 5353 { any; };
+    listen-on-v6 port 5353 { any; };
 
     // Recursive resolver configuration.
     // For sandbox/local testing, restrict queries to sandbox_clients.

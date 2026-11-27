@@ -9,6 +9,7 @@ STACK_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONTAINER="balkan-dns-tier2"
 TARGET_IP="${DNS_BIND_IP:-127.0.0.1}"
 TARGET_PORT="${DNS_PORT:-53}"
+CONTAINER_PORT="5353"
 
 pass() { echo "[PASS] $*"; }
 fail() { echo "[FAIL] $*" >&2; exit 1; }
@@ -36,30 +37,30 @@ for zf in /var/cache/bind/db.root /var/cache/bind/db.dns.opennic.glue /var/cache
 done
 
 echo "=== 4. Normal ICANN domain resolution (UDP + TCP) ==="
-icann_udp="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +short +time=5 example.org A)"
+icann_udp="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +short +time=5 example.org A)"
 [[ -n "${icann_udp}" ]] && pass "ICANN UDP resolution succeeded (example.org -> ${icann_udp//$'\n'/, })" || fail "ICANN UDP resolution failed"
 
-icann_tcp="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +tcp +short +time=5 example.org A)"
+icann_tcp="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +tcp +short +time=5 example.org A)"
 [[ -n "${icann_tcp}" ]] && pass "ICANN TCP fallback resolution succeeded" || fail "ICANN TCP resolution failed"
 
 echo "=== 5. OpenNIC domain resolution ==="
 for domain in "opennic.glue" "dns.opennic.glue" "be.libre" "grep.geek"; do
-  ans="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +short +time=5 "${domain}" A || true)"
+  ans="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +short +time=5 "${domain}" A || true)"
   [[ -n "${ans}" ]] && pass "OpenNIC resolution succeeded (${domain} -> ${ans//$'\n'/, })" || echo "[WARN] Empty A answer for ${domain} (check upstream reachability)"
 done
 
 echo "=== 6. DNSSEC behavior check ==="
-ad_check="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +dnssec +time=5 isc.org A | grep -E "flags:.*ad" || true)"
+ad_check="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +dnssec +time=5 isc.org A | grep -E "flags:.*ad" || true)"
 [[ -n "${ad_check}" ]] && pass "DNSSEC AD bit present for signed ICANN domain (isc.org)" || fail "Missing DNSSEC AD bit for isc.org"
 
-bogus_rc="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +time=5 dnssec-failed.org A | awk '/status:/ {print $6}' | tr -d ',')"
+bogus_rc="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +time=5 dnssec-failed.org A | awk '/status:/ {print $6}' | tr -d ',')"
 [[ "${bogus_rc}" == "SERVFAIL" ]] && pass "DNSSEC rejects bogus signature (dnssec-failed.org -> SERVFAIL)" || fail "Expected SERVFAIL for dnssec-failed.org, got ${bogus_rc}"
 
 echo "=== 7. Privacy & abuse mitigation checks ==="
-ver_out="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +short chaos txt version.bind || true)"
+ver_out="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +short chaos txt version.bind || true)"
 [[ "${ver_out}" == '"not disclosed"' ]] && pass "BIND version hidden (${ver_out})" || fail "Unexpected version.bind: ${ver_out}"
 
-axfr_rc="$(docker exec "${CONTAINER}" dig @"${TARGET_IP}" -p "${TARGET_PORT}" +time=3 opennic.glue AXFR | awk '/status:/ {print $6}' | tr -d ',')"
+axfr_rc="$(docker exec "${CONTAINER}" dig @127.0.0.1 -p "${CONTAINER_PORT}" +time=3 opennic.glue AXFR | awk '/status:/ {print $6}' | tr -d ',')"
 [[ "${axfr_rc}" == "REFUSED" ]] && pass "External AXFR refused by Tier 2 resolver" || fail "Expected AXFR REFUSED, got ${axfr_rc}"
 
 echo "=== 8. Failure recovery check ==="

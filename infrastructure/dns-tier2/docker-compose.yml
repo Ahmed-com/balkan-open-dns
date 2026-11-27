@@ -8,10 +8,11 @@ services:
     restart: unless-stopped
 
     # Bind strictly to localhost by default so DNS is never exposed publicly in dev/sandbox.
+    # Container runs unprivileged as USER bind on internal port 5353 (mapped to host port 53).
     # Override DNS_BIND_IP only when explicitly authorized for a future hardened VPS deployment.
     ports:
-      - "${DNS_BIND_IP:-127.0.0.1}:${DNS_PORT:-53}:53/udp"
-      - "${DNS_BIND_IP:-127.0.0.1}:${DNS_PORT:-53}:53/tcp"
+      - "${DNS_BIND_IP:-127.0.0.1}:${DNS_PORT:-53}:5353/udp"
+      - "${DNS_BIND_IP:-127.0.0.1}:${DNS_PORT:-53}:5353/tcp"
 
     # Resource caps tailored for 1 vCPU / 1 GB RAM target VPS
     mem_limit: 512m
@@ -20,18 +21,12 @@ services:
     cpus: 0.85
     pids_limit: 128
 
-    # Least-privilege container hardening
+    # Least-privilege container hardening (non-root USER bind, zero capabilities)
     read_only: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-      - SETUID
-      - SETGID
-      - CHOWN
-      - DAC_OVERRIDE
 
     volumes:
       - ./config/named.conf:/etc/bind/named.conf:ro
@@ -43,7 +38,6 @@ services:
       - bind_logs:/var/log/named
 
     tmpfs:
-      - /run/named:rw,noexec,nosuid,nodev,size=16m,mode=0750
       - /tmp:rw,noexec,nosuid,nodev,size=16m
 
     healthcheck:

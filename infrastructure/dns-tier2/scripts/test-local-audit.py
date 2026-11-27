@@ -45,8 +45,7 @@ def verify_compose_and_dockerfile() -> None:
         "Dockerfile must pin supported ISC BIND 9.20 image by immutable SHA256 digest",
     )
     assert_true("named-checkconf /etc/bind/named.conf" in dockerfile, "Build-time named-checkconf required")
-    entrypoint_txt = (STACK_DIR / "scripts" / "entrypoint.sh").read_text(encoding="utf-8")
-    assert_true("exec /usr/sbin/named -u bind" in entrypoint_txt, "named must drop privileges to bind user")
+    assert_true("USER bind" in dockerfile, "Dockerfile must run as non-root USER bind")
     for sh_path in sorted((STACK_DIR / "scripts").glob("*.sh")):
         raw = sh_path.read_bytes()
         assert_true(b"\r\n" not in raw, f"Shell script must use LF line endings, found CRLF in {sh_path.name}")

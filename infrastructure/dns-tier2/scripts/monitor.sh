@@ -23,7 +23,7 @@ if [[ -n "${mem_pct}" && "${mem_pct}" -ge "${MAX_MEM_PCT}" ]]; then
   exit 1
 fi
 
-docker exec "${CONTAINER}" dig "@${TARGET_IP}" +time=3 +tries=1 +short dns.opennic.glue SOA >/dev/null
-docker exec "${CONTAINER}" dig "@${TARGET_IP}" +tcp +time=3 +tries=1 +short opennic.glue NS >/dev/null
+docker exec "${CONTAINER}" dig @127.0.0.1 -p 5353 +time=3 +tries=1 +short dns.opennic.glue SOA >/dev/null
+docker exec "${CONTAINER}" dig @127.0.0.1 -p 5353 +tcp +time=3 +tries=1 +short opennic.glue NS >/dev/null
 
 echo "OK: ${CONTAINER} healthy (mem=${mem_pct}%, UDP+TCP responsive)"

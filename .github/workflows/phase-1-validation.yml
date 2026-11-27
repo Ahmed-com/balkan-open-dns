@@ -120,6 +120,10 @@ jobs:
             fi
             sleep 2
           done
+          if [[ "$status" != "healthy" ]]; then
+            docker compose logs --tail=50
+            exit 1
+          fi
           docker port balkan-dns-tier2
           docker stats --no-stream balkan-dns-tier2
 

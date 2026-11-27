@@ -21,6 +21,7 @@ STACK_DIR = pathlib.Path(__file__).resolve().parent.parent
 CONTAINER = "balkan-dns-tier2"
 TARGET_IP = os.environ.get("DNS_BIND_IP", "127.0.0.1")
 TARGET_PORT = int(os.environ.get("DNS_PORT", "53"))
+CONTAINER_DNS_PORT = 5353
 
 results: list[tuple[str, str, str]] = []  # (id_name, status, detail)
 
@@ -35,7 +36,7 @@ def record(name: str, status: str, detail: str) -> None:
 
 
 def dig_container(args: list[str], timeout: int = 15) -> subprocess.CompletedProcess[str]:
-    return run(["docker", "exec", CONTAINER, "dig", f"@{TARGET_IP}", "-p", str(TARGET_PORT), *args], check=False, timeout=timeout)
+    return run(["docker", "exec", CONTAINER, "dig", "@127.0.0.1", "-p", str(CONTAINER_DNS_PORT), *args], check=False, timeout=timeout)
 
 
 def dns_udp_burst(server: str, port: int, qname: str, count: int) -> tuple[int, int, int]:
@@ -99,11 +100,11 @@ def main() -> int:
         nnp = "no-new-privileges:true" in (hc_cfg.get("SecurityOpt") or [])
         cap_drop = "ALL" in (hc_cfg.get("CapDrop") or [])
         mem_cap = hc_cfg.get("Memory") == 536870912
-        udp_bind = net_ports.get("53/udp", [{}])[0].get("HostIp") == "127.0.0.1"
-        tcp_bind = net_ports.get("53/tcp", [{}])[0].get("HostIp") == "127.0.0.1"
+        udp_bind = net_ports.get("5353/udp", [{}])[0].get("HostIp") == "127.0.0.1"
+        tcp_bind = net_ports.get("5353/tcp", [{}])[0].get("HostIp") == "127.0.0.1"
         ps_out = run(["docker", "exec", CONTAINER, "ps", "-eo", "user:20,comm"]).stdout
         non_root_named = any(line.split()[:2] == ["bind", "named"] for line in ps_out.splitlines() if len(line.split()) >= 2)
-        stat_out = run(["docker", "exec", CONTAINER, "stat", "-c", "%n %a %U:%G", "/run/named", "/var/cache/bind", "/var/log/named", "/etc/bind/named.conf"]).stdout.strip()
+        stat_out = run(["docker", "exec", CONTAINER, "stat", "-c", "%n %a %U:%G", "/var/cache/bind", "/var/log/named", "/etc/bind/named.conf"]).stdout.strip()
         if all([ro, nnp, cap_drop, mem_cap, udp_bind, tcp_bind, non_root_named]):
             record("T03_container_security_posture", "PASS", f"ro={ro}, nnp={nnp}, cap_drop={cap_drop}, mem=512m, bind_127={udp_bind and tcp_bind}, user=bind; {stat_out.replace(chr(10), ' | ')}")
         else:
