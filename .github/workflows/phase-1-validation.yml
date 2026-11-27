@@ -63,7 +63,7 @@ jobs:
           python3 infrastructure/dns-tier2/scripts/test-local-audit.py
 
       - name: Trivy filesystem secret and vulnerability scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -73,7 +73,7 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Trivy filesystem misconfiguration audit
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -101,7 +101,7 @@ jobs:
           docker compose build
 
       - name: Trivy container image vulnerability scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: balkan-open-dns/bind9-tier2:1.0.0
           format: table
