@@ -1,0 +1,63 @@
+# Environments and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+credentials/
+
+# Logs and runtime data
+*.log
+logs/
+tmp/
+temp/
+*.pid
+*.sock
+*.sqlite
+*.sqlite3
+*.db
+
+# DNS runtime / zone artifacts (generated at runtime)
+zones/slaves/
+zones/cache/
+*.jnl
+*.jbk
+named.run
+
+# Containers and local overrides
+docker-compose.override.yml
+.docker/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Node.js / Static site build
+node_modules/
+dist/
+build/
+.next/
+.astro/
+coverage/
+
+# Go
+bin/
+*.exe
+*.out
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
