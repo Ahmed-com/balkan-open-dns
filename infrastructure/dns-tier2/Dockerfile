@@ -22,8 +22,11 @@ COPY --chown=root:bind --chmod=0640 config/named.conf.opennic-zones /etc/bind/na
 COPY --chown=root:bind --chmod=0640 config/named.conf.logging /etc/bind/named.conf.logging
 COPY --chmod=0755 scripts/healthcheck.sh /usr/local/bin/healthcheck.sh
 
-# Validate configuration syntax during image build
-RUN named-checkconf /etc/bind/named.conf
+# Validate configuration syntax during image build and generate ephemeral loopback rndc key
+RUN named-checkconf /etc/bind/named.conf && \
+    rndc-confgen -a -c /etc/bind/rndc.key && \
+    chown root:bind /etc/bind/rndc.key && \
+    chmod 0640 /etc/bind/rndc.key
 
 # Run strictly as unprivileged non-root 'bind' user on unprivileged port 5353
 USER bind
