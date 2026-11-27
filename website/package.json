@@ -1,0 +1,16 @@
+{
+  "name": "balkan-open-dns-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static multilingual public website for Balkan Open DNS (Phase 2)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "verify": "node scripts/verify.mjs",
+    "check": "npm run build && npm run verify"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}

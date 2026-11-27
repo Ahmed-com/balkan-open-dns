@@ -1,0 +1,70 @@
+name: Phase 2 Website Build, A11y & Security Gate
+
+on:
+  push:
+    branches:
+      - phase-2-website
+    paths:
+      - 'website/**'
+      - '.github/workflows/phase-2-website.yml'
+      - 'docs/website-deployment.md'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/phase-2-website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-verify-and-audit:
+    name: Static Build, Translation, Link, A11y & Trivy Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Build and verify all 60 localized pages
+        working-directory: website
+        run: npm run check
+
+      - name: Verify headless Chromium rendering & accessibility baseline
+        run: |
+          python3 - <<'PY'
+          import functools, http.server, json, os, socketserver, subprocess, threading
+
+          os.chdir("website/dist")
+          handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=".")
+          httpd = socketserver.TCPServer(("127.0.0.1", 0), handler)
+          port = httpd.server_address[1]
+          threading.Thread(target=httpd.serve_forever, daemon=True).start()
+
+          for loc in ["en", "bs", "sq", "sr", "hr", "mk"]:
+              url = f"http://127.0.0.1:{port}/{loc}/"
+              out = subprocess.check_output(
+                  ["google-chrome", "--headless", "--no-sandbox", "--disable-gpu", "--dump-dom", url],
+                  text=True,
+              )
+              assert '<main id="main-content">' in out, f"Missing main in rendered {loc}"
+              assert 'class="notice-bar"' in out, f"Missing notice bar in rendered {loc}"
+          print("Headless Chromium DOM verification passed for all 6 locales.")
+          httpd.shutdown()
+          PY
+
+      - name: Trivy secret and misconfiguration scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: website
+          scanners: vuln,secret,misconfig
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
