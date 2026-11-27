@@ -1,0 +1,32 @@
+// Balkan Open DNS — Privacy-Conscious BIND9 Logging Policy
+// Strictly NO client DNS query logging or archival of user IP addresses.
+
+logging {
+    channel "op_notices" {
+        file "/var/log/named/named-ops.log" versions 2 size 10m;
+        severity notice;
+        print-time yes;
+        print-severity yes;
+        print-category yes;
+    };
+
+    channel "security_events" {
+        file "/var/log/named/named-security.log" versions 2 size 10m;
+        severity warning;
+        print-time yes;
+        print-severity yes;
+        print-category yes;
+    };
+
+    // Explicitly discard client query logs to protect user privacy
+    category queries { null; };
+    category query-errors { null; };
+
+    // Keep operational, zone transfer, DNSSEC, and rate-limit warnings bounded
+    category security { security_events; };
+    category rate-limit { security_events; };
+    category dnssec { security_events; };
+    category xfer-in { op_notices; };
+    category general { op_notices; };
+    category default { op_notices; };
+};

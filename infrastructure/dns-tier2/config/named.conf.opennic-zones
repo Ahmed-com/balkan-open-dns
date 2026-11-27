@@ -1,0 +1,44 @@
+// Balkan Open DNS — OpenNIC Secondary Zone Synchronization
+// Compliant with OpenNIC public Tier 2 Slave Zone Method requirements.
+// Upstream Tier 1 primaries verified passing on https://servers.opennic.org/?tier=1
+// and verified allowing AXFR of '.' and 'dns.opennic.glue' on 2026-11-27.
+
+primaries opennic_t1 {
+    161.97.219.84;                  // ns2.opennic.glue (Pass)
+    // 2001:470:4212:10:0:100:53:10; // Enable IPv6 primaries only when host has IPv6 routing
+    116.203.104.203;                // ns4.opennic.glue (Pass)
+    // 2a01:4f8:c2c:da9c::1;
+    45.79.189.158;                  // ns6.opennic.glue (Pass)
+    153.56.130.67;                  // ns7.opennic.glue (Pass)
+    // 2001:470:7493::e0;
+    // Excluded during 2026-11-27 live audit (listed Offline on servers.opennic.org):
+    // 178.63.116.152;              // ns8.opennic.glue (Offline)
+    // 188.226.146.136;             // ns10.opennic.glue (Offline)
+};
+
+// OpenNIC aggregate root zone (covers both OpenNIC TLDs and ICANN referrals)
+zone "." IN {
+    type secondary;
+    file "/var/cache/bind/db.root";
+    primaries { opennic_t1; };
+    allow-transfer { none; };
+    notify no;
+};
+
+// Mandatory OpenNIC Tier 2 service glue zone
+zone "dns.opennic.glue" IN {
+    type secondary;
+    file "/var/cache/bind/db.dns.opennic.glue";
+    primaries { opennic_t1; };
+    allow-transfer { none; };
+    notify no;
+};
+
+// Core OpenNIC glue zone
+zone "opennic.glue" IN {
+    type secondary;
+    file "/var/cache/bind/db.opennic.glue";
+    primaries { opennic_t1; };
+    allow-transfer { none; };
+    notify no;
+};

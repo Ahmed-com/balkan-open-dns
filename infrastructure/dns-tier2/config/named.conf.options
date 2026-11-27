@@ -1,0 +1,78 @@
+// Balkan Open DNS — Phase 1 Tier 2 Resolver Options
+// Sized for a 1 vCPU / 1 GB RAM target VPS (hard-capped cache & client limits).
+
+acl "sandbox_clients" {
+    localhost;
+    127.0.0.0/8;
+    ::1/128;
+    172.16.0.0/12;
+    10.0.0.0/8;
+    192.168.0.0/16;
+};
+
+options {
+    directory "/var/cache/bind";
+    pid-file "/run/named/named.pid";
+    session-keyfile "/run/named/session.key";
+
+    // Listen on all container interfaces; host exposure is strictly controlled
+    // via Docker port binding (127.0.0.1:53 in dev/sandbox) and host firewall.
+    listen-on port 53 { any; };
+    listen-on-v6 port 53 { any; };
+
+    // Recursive resolver configuration.
+    // For sandbox/local testing, restrict queries to sandbox_clients.
+    // For an explicitly authorized public Tier 2 VPS deployment, change to { any; }.
+    recursion yes;
+    allow-query { sandbox_clients; };
+    allow-recursion { sandbox_clients; };
+    allow-query-cache { sandbox_clients; };
+
+    // Never expose AXFR zone dumps from a Tier 2 recursive resolver.
+    allow-transfer { none; };
+    notify no;
+
+    // Memory and concurrency bounds for 1 vCPU / 1 GB RAM VPS
+    max-cache-size 256m;
+    max-cache-ttl 86400;
+    max-ncache-ttl 3600;
+    recursive-clients 1000;
+    tcp-clients 100;
+    clients-per-query 15;
+    max-clients-per-query 50;
+
+    // DNSSEC validation using OpenNIC trust anchors in named.conf.keys.
+    // Use 'yes' (not 'auto') so ICANN's built-in anchor does not override OpenNIC's root key.
+    dnssec-validation yes;
+
+    // Privacy & information minimization
+    version "not disclosed";
+    hostname none;
+    server-id none;
+    qname-minimization relaxed;
+    minimal-responses yes;
+    minimal-any yes;
+
+    // Prevent IP fragmentation and UDP amplification
+    edns-udp-size 1232;
+    max-udp-size 1232;
+    auth-nxdomain no;
+
+    // Response Rate Limiting (RRL) for amplification and reflection abuse mitigation
+    rate-limit {
+        responses-per-second 10;
+        referrals-per-second 5;
+        nodata-per-second 5;
+        nxdomains-per-second 5;
+        errors-per-second 5;
+        all-per-second 50;
+        window 15;
+        slip 2;
+        max-table-size 20000;
+    };
+};
+
+// Restrict rndc control channel strictly to loopback
+controls {
+    inet 127.0.0.1 port 953 allow { 127.0.0.1; };
+};

@@ -1,0 +1,74 @@
+services:
+  bind9-tier2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: balkan-open-dns/bind9-tier2:1.0.0
+    container_name: balkan-dns-tier2
+    restart: unless-stopped
+
+    # Bind strictly to localhost by default so DNS is never exposed publicly in dev/sandbox.
+    # Override DNS_BIND_IP only when explicitly authorized for a future hardened VPS deployment.
+    ports:
+      - "${DNS_BIND_IP:-127.0.0.1}:${DNS_PORT:-53}:53/udp"
+      - "${DNS_BIND_IP:-127.0.0.1}:${DNS_PORT:-53}:53/tcp"
+
+    # Resource caps tailored for 1 vCPU / 1 GB RAM target VPS
+    mem_limit: 512m
+    memswap_limit: 512m
+    mem_reservation: 192m
+    cpus: 0.85
+    pids_limit: 128
+
+    # Least-privilege container hardening
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+
+    volumes:
+      - ./config/named.conf:/etc/bind/named.conf:ro
+      - ./config/named.conf.options:/etc/bind/named.conf.options:ro
+      - ./config/named.conf.keys:/etc/bind/named.conf.keys:ro
+      - ./config/named.conf.opennic-zones:/etc/bind/named.conf.opennic-zones:ro
+      - ./config/named.conf.logging:/etc/bind/named.conf.logging:ro
+      - bind_cache:/var/cache/bind
+      - bind_logs:/var/log/named
+
+    tmpfs:
+      - /run/named:rw,noexec,nosuid,nodev,size=16m,mode=0750
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - dns_sandbox
+
+volumes:
+  bind_cache:
+    name: balkan_dns_cache
+  bind_logs:
+    name: balkan_dns_logs
+
+networks:
+  dns_sandbox:
+    name: balkan_dns_sandbox
+    driver: bridge

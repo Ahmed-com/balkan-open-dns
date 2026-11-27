@@ -13,6 +13,7 @@ credentials/
 # Logs and runtime data
 *.log
 logs/
+backups/
 tmp/
 temp/
 *.pid
