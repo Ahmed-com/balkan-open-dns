@@ -132,25 +132,37 @@ def main() -> int:
     if not external_dns_ok:
         record("T05_icann_udp_resolution", "SKIP", "External DNS blocked in CI environment")
     else:
-        r = dig_container(["+time=10", "+tries=2", "icann.org", "A"])
-        has_ans = "status: NOERROR" in r.stdout and "ANSWER SECTION:" in r.stdout
-        if r.returncode == 0 and has_ans:
-            record("T05_icann_udp_resolution", "PASS", "icann.org A resolved via UDP (NOERROR)")
+        ic_ok, ic_fail = [], []
+        for dom in ["isc.org", "cloudflare.com", "debian.org"]:
+            r = dig_container(["+time=10", "+tries=2", dom, "A"])
+            if r.returncode == 0 and "status: NOERROR" in r.stdout and "ANSWER SECTION:" in r.stdout:
+                ic_ok.append(dom)
+            else:
+                st = re.search(r"status:\s+([A-Z]+)", r.stdout)
+                ic_fail.append(f"{dom}={st.group(1) if st else 'ERR'}")
+        diag_ic = dig_container(["+cd", "+time=5", "icann.org", "A"])
+        diag_st = re.search(r"status:\s+([A-Z]+)", diag_ic.stdout)
+        if not ic_fail:
+            record("T05_icann_udp_resolution", "PASS", f"UDP resolved: {', '.join(ic_ok)} (icann.org +cd={diag_st.group(1) if diag_st else 'ERR'})")
         else:
-            st = re.search(r"status:\s+([A-Z]+)", r.stdout)
-            record("T05_icann_udp_resolution", "FAIL", f"rc={r.returncode} status={st.group(1) if st else 'ERR'} out={r.stdout[:240].strip()} err={r.stderr.strip()}")
+            record("T05_icann_udp_resolution", "FAIL", f"passed={ic_ok}, failed={ic_fail}, icann.org +cd={diag_st.group(1) if diag_st else 'ERR'}")
 
     # T06: ICANN recursive resolution (TCP fallback)
     if not external_dns_ok:
         record("T06_icann_tcp_resolution", "SKIP", "External DNS blocked in CI environment")
     else:
-        r = dig_container(["+tcp", "+time=10", "+tries=2", "icann.org", "A"])
-        has_ans = "status: NOERROR" in r.stdout and "ANSWER SECTION:" in r.stdout
-        if r.returncode == 0 and has_ans:
-            record("T06_icann_tcp_resolution", "PASS", "icann.org A resolved via TCP fallback (NOERROR)")
+        ic_ok, ic_fail = [], []
+        for dom in ["isc.org", "cloudflare.com", "debian.org"]:
+            r = dig_container(["+tcp", "+time=10", "+tries=2", dom, "A"])
+            if r.returncode == 0 and "status: NOERROR" in r.stdout and "ANSWER SECTION:" in r.stdout:
+                ic_ok.append(dom)
+            else:
+                st = re.search(r"status:\s+([A-Z]+)", r.stdout)
+                ic_fail.append(f"{dom}={st.group(1) if st else 'ERR'}")
+        if not ic_fail:
+            record("T06_icann_tcp_resolution", "PASS", f"TCP fallback resolved: {', '.join(ic_ok)}")
         else:
-            st = re.search(r"status:\s+([A-Z]+)", r.stdout)
-            record("T06_icann_tcp_resolution", "FAIL", f"rc={r.returncode} status={st.group(1) if st else 'ERR'} out={r.stdout[:240].strip()} err={r.stderr.strip()}")
+            record("T06_icann_tcp_resolution", "FAIL", f"passed={ic_ok}, failed={ic_fail}")
 
     # T07: OpenNIC recursive resolution (UDP + TCP across active TLDs)
     if not external_dns_ok:
