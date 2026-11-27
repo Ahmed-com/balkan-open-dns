@@ -6,6 +6,9 @@ services:
     image: balkan-open-dns/bind9-tier2:1.0.0
     container_name: balkan-dns-tier2
     restart: unless-stopped
+    # Match IPv4-only Docker bridge network (balkan_dns_sandbox) to prevent IPv6 cold-query SERVFAILs;
+    # override/remove -4 only on dual-stack IPv6 hosts.
+    command: ["-4", "-f", "-c", "/etc/bind/named.conf"]
 
     # Bind strictly to localhost by default so DNS is never exposed publicly in dev/sandbox.
     # Container runs unprivileged as USER bind on internal port 5353 (mapped to host port 53).

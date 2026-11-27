@@ -74,8 +74,9 @@ table inet filter {
 ## 3. Deployment Steps (When Explicitly Authorized)
 
 1. Clone repository at the approved release tag/commit (do **not** run unpinned main without review).
-2. Review [`infrastructure/dns-tier2/config/named.conf.options`](../infrastructure/dns-tier2/config/named.conf.options):
+2. Review [`infrastructure/dns-tier2/config/named.conf.options`](../infrastructure/dns-tier2/config/named.conf.options) and [`infrastructure/dns-tier2/docker-compose.yml`](../infrastructure/dns-tier2/docker-compose.yml):
    - Change `allow-query`, `allow-recursion`, `allow-query-cache` from `{ sandbox_clients; };` to `{ any; };` (required for public OpenNIC Tier 2 testing).
+   - If the VPS has working IPv6 routing and dual-stack Docker networking, remove `-4` from `command` in `docker-compose.yml` and enable IPv6 Tier 1 primaries in `named.conf.opennic-zones`; otherwise keep `-4` on IPv4-only hosts.
    - Verify live OpenNIC Tier 1 primaries (`dig . NS @161.97.219.84`) and root KSK (`dig DNSKEY . @161.97.219.84 +short`).
 3. Create `.env` (gitignored) setting `DNS_BIND_IP=<VPS_PUBLIC_IPV4>` and `DNS_PORT=53`.
 4. Validate and start:

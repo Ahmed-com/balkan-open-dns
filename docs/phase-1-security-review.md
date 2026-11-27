@@ -22,13 +22,14 @@
 
 Per project security policy, **`dnssec-validation yes;` remains strictly enforced without adding `validate-except` bypasses to manufacture passing tests.**
 
-Live TCP/53 upstream probes on `2026-11-27` against `161.97.219.84` (`ns2.opennic.glue`) recorded the following upstream anomalies:
+Live TCP/53 upstream probes (`2026-11-27`) and Linux BIND 9.20 recursive container validation (`2026-11-27`) recorded the following upstream behaviors:
 
-1. **`.free` (`DS` count = 3 in `.`, `DNSKEY` count = 0, `SOA` answer count = 0 on `ns2`):** Delegation exists in root with DS records, but DNSKEY/authoritative records did not resolve cleanly in the direct probe.
-2. **`.ing` (`DS` count = 2 in `.`, `DNSKEY` count = 0, `SOA` answer count = 0 on `ns2`):** Root carries DS delegation while `DNSKEY` query returned 0 answers on `ns2`.
-3. **`.o` (`DS` count = 5 in `.`, `DNSKEY` count = 0 on `ns2`):** Root carries 5 DS records; `ns2` returned 0 `DNSKEY` answers (`.o` primary master is `ns7.opennic.glue` `153.56.130.67`; requires recursive resolution check in Linux CI).
-4. **`.fur` (`SOA RCODE=2 SERVFAIL` on `ns2`, `DS=0`):** Upstream returned `SERVFAIL` during direct probe.
+1. **`.o` (`SERVFAIL` in recursive BIND9 validation):** OpenNIC root carries 5 `DS` records for `.o`, while authoritative queries failed DNSSEC validation (`named-security.log`: `validating o/SOA: got insecure response; parent indicates it should be secure`).
+2. **`.chan` (`SERVFAIL` in recursive BIND9 validation):** Upstream `.chan` zone signatures are expired (`named-security.log`: `validating chan/DNSKEY: verify failed due to bad signature (keyid=27151): RRSIG has expired`).
+3. **`.fur` (`NOERROR` without `AD` in recursive BIND9; `SERVFAIL` when querying `ns2` directly):** Resolves as unsigned/insecure delegation recursively (`DS=0`), while direct `ns2` (`161.97.219.84`) probe returned `SERVFAIL`.
+4. **`.free` and `.ing` (`NOERROR + AD` in recursive BIND9):** Despite returning 0 `DNSKEY` answers on `ns2` (`161.97.219.84`), recursive resolution to their authoritative masters validated cleanly with `AD=1`.
 5. **Offline Tier 1 servers on `servers.opennic.org/?tier=1`:** `ns8.opennic.glue` (`178.63.116.152`) and `ns10.opennic.glue` (`188.226.146.136`) are marked `Offline` and excluded from active `primaries opennic_t1`.
+6. **IPv4-only container bridge behavior:** Inside an IPv4-only Docker bridge (`enable_ipv6: false`), omitting `-4` caused cold recursive queries (`isc.org`) to suffer transient `SERVFAIL` on unreachable IPv6 upstream NS attempts; `docker-compose.yml` sets `-4` to match the IPv4-only sandbox bridge.
 
 ---
 
