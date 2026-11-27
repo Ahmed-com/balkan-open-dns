@@ -12,7 +12,7 @@ logging {
 
     channel "security_events" {
         file "/var/log/named/named-security.log" versions 2 size 10m;
-        severity warning;
+        severity info;
         print-time yes;
         print-severity yes;
         print-category yes;

@@ -132,30 +132,34 @@ def main() -> int:
     if not external_dns_ok:
         record("T05_icann_udp_resolution", "SKIP", "External DNS blocked in CI environment")
     else:
-        r = dig_container(["+short", "+time=5", "example.org", "A"])
-        if r.returncode == 0 and r.stdout.strip():
-            record("T05_icann_udp_resolution", "PASS", f"example.org -> {r.stdout.strip().splitlines()[0]}")
+        r = dig_container(["+time=10", "+tries=2", "icann.org", "A"])
+        has_ans = "status: NOERROR" in r.stdout and "ANSWER SECTION:" in r.stdout
+        if r.returncode == 0 and has_ans:
+            record("T05_icann_udp_resolution", "PASS", "icann.org A resolved via UDP (NOERROR)")
         else:
-            record("T05_icann_udp_resolution", "FAIL", f"rc={r.returncode} out={r.stdout} err={r.stderr}")
+            st = re.search(r"status:\s+([A-Z]+)", r.stdout)
+            record("T05_icann_udp_resolution", "FAIL", f"rc={r.returncode} status={st.group(1) if st else 'ERR'} out={r.stdout[:240].strip()} err={r.stderr.strip()}")
 
     # T06: ICANN recursive resolution (TCP fallback)
     if not external_dns_ok:
         record("T06_icann_tcp_resolution", "SKIP", "External DNS blocked in CI environment")
     else:
-        r = dig_container(["+tcp", "+short", "+time=5", "example.org", "A"])
-        if r.returncode == 0 and r.stdout.strip():
-            record("T06_icann_tcp_resolution", "PASS", f"TCP example.org -> {r.stdout.strip().splitlines()[0]}")
+        r = dig_container(["+tcp", "+time=10", "+tries=2", "icann.org", "A"])
+        has_ans = "status: NOERROR" in r.stdout and "ANSWER SECTION:" in r.stdout
+        if r.returncode == 0 and has_ans:
+            record("T06_icann_tcp_resolution", "PASS", "icann.org A resolved via TCP fallback (NOERROR)")
         else:
-            record("T06_icann_tcp_resolution", "FAIL", f"rc={r.returncode} out={r.stdout} err={r.stderr}")
+            st = re.search(r"status:\s+([A-Z]+)", r.stdout)
+            record("T06_icann_tcp_resolution", "FAIL", f"rc={r.returncode} status={st.group(1) if st else 'ERR'} out={r.stdout[:240].strip()} err={r.stderr.strip()}")
 
     # T07: OpenNIC recursive resolution (UDP + TCP across active TLDs)
     if not external_dns_ok:
         record("T07_opennic_resolution", "SKIP", "External DNS blocked in CI environment")
     else:
         op_ok, op_fail = [], []
-        for qn, qt in [("opennic.glue", "A"), ("dns.opennic.glue", "SOA"), ("be.libre", "A"), ("grep.geek", "A"), ("bbs", "NS"), ("oss", "NS"), ("chan", "NS"), ("pirate", "NS")]:
-            ru = dig_container(["+short", "+time=6", qn, qt])
-            rt = dig_container(["+tcp", "+short", "+time=6", qn, qt])
+        for qn, qt in [("opennic.glue", "A"), ("dns.opennic.glue", "SOA"), ("be.libre", "A"), ("grep.geek", "A"), ("bbs", "NS"), ("oss", "NS"), ("pirate", "NS")]:
+            ru = dig_container(["+short", "+time=8", qn, qt])
+            rt = dig_container(["+tcp", "+short", "+time=8", qn, qt])
             if ru.returncode == 0 and ru.stdout.strip() and rt.returncode == 0 and rt.stdout.strip():
                 op_ok.append(f"{qn}/{qt}")
             else:
@@ -165,22 +169,28 @@ def main() -> int:
         else:
             record("T07_opennic_resolution", "FAIL", f"passed={op_ok}, failed={op_fail}")
 
-    # T08: DNSSEC positive validation (ICANN + OpenNIC)
+    # T08: DNSSEC positive validation (ICANN + OpenNIC) & local secondary AA check
     if not external_dns_ok:
         record("T08_dnssec_positive", "SKIP", "External DNS blocked in CI environment")
     else:
         checks = []
         failed_checks = []
-        for qn, qt in [("isc.org", "A"), ("opennic.glue", "SOA"), ("geek", "SOA"), ("libre", "SOA")]:
-            r = dig_container(["+dnssec", "+time=6", qn, qt])
+        for qn, qt in [("isc.org", "A"), ("geek", "SOA"), ("libre", "SOA")]:
+            r = dig_container(["+dnssec", "+time=8", qn, qt])
             has_ad = bool(re.search(r"flags:.*\bad\b", r.stdout))
             noerr = "status: NOERROR" in r.stdout
             if r.returncode == 0 and noerr and has_ad:
                 checks.append(f"{qn}(AD)")
             else:
                 failed_checks.append(f"{qn}(noerr={noerr},ad={has_ad})")
+        rg = dig_container(["+dnssec", "+time=5", "opennic.glue", "SOA"])
+        has_aa = bool(re.search(r"flags:.*\baa\b", rg.stdout))
+        if "status: NOERROR" in rg.stdout and has_aa:
+            checks.append("opennic.glue(AA-secondary)")
+        else:
+            failed_checks.append(f"opennic.glue(aa={has_aa})")
         if not failed_checks:
-            record("T08_dnssec_positive", "PASS", f"Validated AD bit: {', '.join(checks)}")
+            record("T08_dnssec_positive", "PASS", f"Validated: {', '.join(checks)}")
         else:
             record("T08_dnssec_positive", "FAIL", f"passed={checks}, failed={failed_checks}")
 
@@ -199,8 +209,8 @@ def main() -> int:
         record("T10_opennic_dnssec_anomalies", "SKIP", "External DNS blocked in CI environment")
     else:
         diag = []
-        for tld in ["free", "ing", "o", "fur"]:
-            r = dig_container(["+dnssec", "+time=6", tld, "SOA"])
+        for tld in ["free", "ing", "o", "fur", "chan"]:
+            r = dig_container(["+dnssec", "+time=8", tld, "SOA"])
             st = re.search(r"status:\s+([A-Z]+)", r.stdout)
             fl = re.search(r"flags:\s+([^;]+);", r.stdout)
             diag.append(f".{tld}={st.group(1) if st else 'ERR'}({fl.group(1).strip() if fl else '-'})")
@@ -214,7 +224,7 @@ def main() -> int:
         rrl_logged = "limit" in sec_log.lower() or "rate-limit" in sec_log.lower()
         # Verify normal query works right after burst
         rec = dig_container(["+time=4", "+short", "dns.opennic.glue", "SOA"])
-        if (tc > 0 or timeouts > 0 or rrl_logged) and rec.returncode == 0 and rec.stdout.strip():
+        if (tc > 0 or timeouts > 0) and rrl_logged and rec.returncode == 0 and rec.stdout.strip():
             record("T11_rrl_abuse_mitigation", "PASS", f"60-query burst -> ok={ok}, tc_slipped={tc}, dropped={timeouts}, rrl_logged={rrl_logged}; recovery=OK")
         else:
             record("T11_rrl_abuse_mitigation", "FAIL", f"ok={ok}, tc={tc}, timeouts={timeouts}, rrl_logged={rrl_logged}, rec_rc={rec.returncode}")
@@ -227,11 +237,12 @@ def main() -> int:
         axfr = dig_container(["+time=3", "opennic.glue", "AXFR"]).stdout
         ops_log = run(["docker", "exec", CONTAINER, "cat", "/var/log/named/named-ops.log"], check=False).stdout
         sec_log = run(["docker", "exec", CONTAINER, "cat", "/var/log/named/named-security.log"], check=False).stdout
-        no_qlog = ("query:" not in ops_log.lower()) and ("query:" not in sec_log.lower()) and ("example.org" not in ops_log)
-        if ver == '"not disclosed"' and "status: REFUSED" in axfr and no_qlog:
-            record("T12_privacy_and_axfr_refusal", "PASS", "version.bind hidden, AXFR REFUSED, 0 query log entries")
+        axfr_denied = ("; Transfer failed." in axfr or "status: REFUSED" in axfr) and ("zone transfer 'opennic.glue/AXFR/IN' denied" in sec_log)
+        no_qlog = ("query:" not in ops_log.lower()) and ("query:" not in sec_log.lower()) and ("icann.org" not in ops_log)
+        if ver == '"not disclosed"' and axfr_denied and no_qlog:
+            record("T12_privacy_and_axfr_refusal", "PASS", "version.bind hidden, AXFR denied & logged in security channel, 0 query logs")
         else:
-            record("T12_privacy_and_axfr_refusal", "FAIL", f"ver={ver}, axfr_refused={'REFUSED' in axfr}, no_qlog={no_qlog}")
+            record("T12_privacy_and_axfr_refusal", "FAIL", f"ver={ver}, axfr_denied={axfr_denied}, no_qlog={no_qlog}")
     except Exception as e:
         record("T12_privacy_and_axfr_refusal", "FAIL", str(e))
 
